@@ -1,0 +1,11 @@
+# Ignoring elixir-ls related files
+.elixir_ls/
+
+# And Exercism solution files
+.exercism/
+
+# Plus emacs temp files
+*~
+
+## Each exercise has its own .gitignore inherited from Exercism.
+## HELP, HINTS and README files may be useful for future reference.
