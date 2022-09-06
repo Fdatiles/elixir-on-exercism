@@ -1,11 +1,12 @@
 defmodule FileSniffer do
-  @spec type_from_extension(String.t()) :: String.t()
+  @spec type_from_extension(String.t()) :: String.t() | nil
   def type_from_extension(extension)
   def type_from_extension("exe"), do: "application/octet-stream"
   def type_from_extension("bmp"), do: "image/bmp"
   def type_from_extension("png"), do: "image/png"
   def type_from_extension("jpg"), do: "image/jpg"
   def type_from_extension("gif"), do: "image/gif"
+  def type_from_extension(ext) when is_binary(ext), do: nil
 
   @spec type_from_binary(binary) :: String.t()
   def type_from_binary(file_binary)
@@ -17,6 +18,7 @@ defmodule FileSniffer do
 
   def type_from_binary(<<0xFF, 0xD8, 0xFF, _::binary>>), do: "image/jpg"
   def type_from_binary(<<0x47, 0x49, 0x46, _::binary>>), do: "image/gif"
+  def type_from_binary(bin) when is_binary(bin), do: nil
 
   @spec verify(binary, String.t()) :: {:ok, String.t()} | {:error, String.t()}
   def verify(file_binary, extension) do
