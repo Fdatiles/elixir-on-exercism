@@ -1,0 +1,133 @@
+name: Elixir CI
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  # JOB to run change detection
+  # Mostly from https://github.com/dorny/paths-filter#conditional-execution
+  get-changes:
+    name: Search for changes in exercise files
+    runs-on: ubuntu-latest
+
+    # Set job outputs to values from mod-filter step
+    outputs:
+      # Signals with 'true' or 'false' if some filtered file has changed
+      has-changed: ${{ steps.mod-filter.outputs.exercise }}
+      # Filtered exercise directories where some file has changed
+      directories: ${{ steps.transform.outputs.directories }}
+
+    steps:
+    # Checkout to access repo tree
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # Filter new + modified files
+    - name: Search for changes on exercise solutions
+      uses: dorny/paths-filter@v2
+      id: mod-filter
+      with:
+        # Format list to use in `steps.transform.run`
+        list-files: shell
+        # Always compare to the HEAD of the same branch
+        base: "HEAD"
+        filters: |
+          exercise:
+            # Any .ex or .exs at least one directory under repo root
+            # Excludes hidden dirs
+            - '*/**/*.ex?(s)'
+
+    # Process changed files to find their parent closest to project root
+    # -> Gets each modified exercise folder
+    # Adapted from https://github.com/dorny/paths-filter/issues/137#issuecomment-1323858440
+    - name: Grab exercise name from modified files
+      id: transform
+      continue-on-error: false
+      run: |
+        # Transform list of files into list of dirs
+        folders=()
+
+        ## The original gets immediate parent
+        # for f in ${{ steps.filter.outputs.some-filter_files }}; \
+        #  do \
+        #    echo "Adding $(dirname $f) to folders to test"; \
+        #    folders+=($(dirname $f)); \
+        # done
+
+        # This one gets the outermost parent
+        # Chokes on '..', but that shouldn't be an issue
+        for f in ${{ steps.mod-filter.outputs.exercise_files }}; do \
+          parentdir=$(realpath $f --relative-to=$GITHUB_WORKSPACE); \
+          grandparentdir=$(dirname $parentdir); \
+          while [ "$grandparentdir" != "." ]; do \
+            parentdir=$grandparentdir; \
+            grandparentdir=$(dirname $parentdir); \
+          done
+          folders+=($parentdir); \
+        done
+
+        unique_folders=($(printf "%s\n" "${folders[@]}" | sort -u | tr '\n' ' '))
+        directories=$(jq --compact-output --null-input '$ARGS.positional' --args -- ${unique_folders[@]})
+
+        echo "directories=$directories"
+
+        if [ directories == '[]' ]; then
+            # dummy-dir so that build.strategy.matrix.exercise is not empty
+            echo "directories=['dummy-dir']" >> $GITHUB_OUTPUT
+        else
+            echo "directories=$directories" >> $GITHUB_OUTPUT
+        fi
+
+  test:
+    name: Test solution
+    needs: [get-changes]
+    runs-on: ubuntu-latest
+    if: ${{ needs.get-changes.outputs.has-changed == 'true' }}
+
+    strategy:
+      matrix:
+        exercise: ${{ fromJSON(needs.get-changes.outputs.directories) }}
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.exercise }}
+
+    steps:
+    # Checkout again since it's a different job
+    # Without this, it simply fails
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1.15
+      with:
+        elixir-version: '1.14.x'
+        otp-version: '25.x'
+
+    - name: Info for debugging
+      run: |
+        echo ${{ needs.get-changes.outputs.directories }}
+        echo ${{ matrix.exercise }}
+
+    - name: Check for lock file for `${{ matrix.exercise }}`
+      id: check-lock
+      uses: andstor/file-existence-action@v2
+      with:
+        files: ${{ format('{0}/**/mix.lock', matrix.exercise) }}
+
+    - name: Restore `${{ matrix.exercise }}` dependencies cache
+      # Only cache when there is a lock
+      if: ${{ steps.check-lock.outputs.files_exists == 'true' }}
+      uses: actions/cache@v3
+      with:
+        path: deps
+        key: ${{ runner.os }}-mix-${{ hashFiles(format('{0}/**/mix.lock', matrix.exercise)) }}
+        restore-keys: ${{ runner.os }}-mix-
+
+    - name: Install `${{ matrix.exercise }}` dependencies
+      run: mix deps.get
+
+    - name: Run `${{ matrix.exercise }}` tests
+      run: mix test --color --include pending
