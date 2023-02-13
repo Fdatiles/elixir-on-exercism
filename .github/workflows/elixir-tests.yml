@@ -32,7 +32,7 @@ jobs:
         # Format list to use in `steps.transform.run`
         list-files: shell
         # Always compare to the HEAD of the same branch
-        base: "HEAD"
+        base: ${{ github.ref }}
         filters: |
           exercise:
             # Any .ex or .exs at least one directory under repo root
