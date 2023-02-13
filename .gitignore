@@ -7,5 +7,8 @@
 # Plus emacs temp files
 *~
 
+# Also emacs recover-session things
+\#*\#
+
 ## Each exercise has its own .gitignore inherited from Exercism.
 ## HELP, HINTS and README files may be useful for future reference.
