@@ -15,7 +15,7 @@ defmodule NucleotideCount do
   1
   """
   @spec count(charlist, nucleotide) :: non_neg_integer
-  def count(strand, nucleotide) when nucleotide in @nucleotides do
+  def count(strand, nucleotide) when is_list(strand) and nucleotide in @nucleotides do
     Enum.count(strand, &(&1 === nucleotide))
   end
 
@@ -28,7 +28,7 @@ defmodule NucleotideCount do
   %{?A => 4, ?T => 1, ?C => 0, ?G => 0}
   """
   @spec histogram(charlist) :: %{nucleotide => non_neg_integer}
-  def histogram(strand) do
+  def histogram(strand) when is_list(strand) do
     empty_hist = Map.from_keys(@nucleotides, 0)
 
     Enum.reduce(strand, empty_hist, fn nucleotide, hist ->
