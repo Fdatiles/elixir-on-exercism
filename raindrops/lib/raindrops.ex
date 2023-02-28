@@ -15,7 +15,7 @@ defmodule Raindrops do
     just pass the number's digits straight through.
   """
   @spec convert(pos_integer) :: String.t()
-  def convert(number) do
+  def convert(number) when is_integer(number) and number > 0 do
     out =
       @divisor_labels
       |> Enum.sort_by(fn {k, _v} -> k end)
